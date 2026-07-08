@@ -128,8 +128,8 @@ match_residual_within_dwelling <- function(
     ) |>
     dplyr::select(-rival_prev, -rival_curr)
 
-  # Corroboration: single-person fuzzy matches are weaker evidence than
-  # matches embedded in a household block that moved together.
+  # We match people within a dwelling. I'm adding an extra step to calculate how 
+  # many matches embedded in a household block moved together.
   matched |>
     dplyr::add_count(
       id_dwelling, id_household_prev, id_household_curr,

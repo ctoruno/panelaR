@@ -48,7 +48,6 @@ read_data <- function(
           file_path <- file.path(
             path_to_data,
             "ECU-ENEMDU", "source",
-            # glue::glue("{year}_{month_str}"),
             csv_file
           )
 
@@ -91,7 +90,71 @@ read_data <- function(
             message(sprintf("[--  ] %s: File not found", file_path))
             raw_data_with_std_vars <- NULL
           }
+          raw_data_with_std_vars
+        }
+      )
+    }
+  
+    if (survey %in% c("ene")){
 
+      ene_month_mapping <- c(
+        "01"="def", "02"="efm", "03"="fma", "04"="mam", "05"="amj", "06"="mjj",
+        "07"="jja", "08"="jas", "09"="aso", "10"="son", "11"="ond", "12"="nde"
+      )
+
+      raw_data_list <- lapply(
+        periods,
+        \(period) {
+
+          year  <- as.integer(stringr::str_sub(period, 1, 4))
+          month <- as.integer(stringr::str_sub(period, 6, 7))
+          month_str <- stringr::str_sub(period, 6, 7)
+          moving_quarter <- ene_month_mapping[[month_str]]
+          csv_file <- glue::glue("ene-{year}-{month_str}-{moving_quarter}.csv")
+
+          file_path <- file.path(
+            path_to_data,
+            "CHL-ENE", "source",
+            csv_file
+          )
+
+          if (file.exists(file_path)) {
+
+            raw_data <- readr::read_delim(
+              file_path,
+              delim = ";",
+              guess_max = 5000,
+              show_col_types = FALSE,
+              col_types = readr::cols(
+                r_p_c = readr::col_character(),
+                estrato = readr::col_character(),
+                conglomerado = readr::col_character(),
+                id_identificacion = readr::col_character(),
+                idrph = readr::col_character(),
+                mig5_cod = readr::col_character(),
+                b16_otro = readr::col_character(),
+                fact_cal = readr::col_double()
+              )
+            )
+
+            raw_data_with_std_vars <- raw_data |>
+              dplyr::mutate(
+                year = as.integer(ano_trimestre),
+                period = as.integer(mes_central),
+                quarter = dplyr::case_when(
+                  period %in% c(1,2,3) ~ "Q1",
+                  period %in% c(4,5,6) ~ "Q2",
+                  period %in% c(7,8,9) ~ "Q3",
+                  period %in% c(10,11,12) ~ "Q4"
+                )
+              )
+            
+            message(sprintf("[--  ] %s: File successfully loaded", csv_file))
+
+          } else {
+            message(sprintf("[--  ] %s: File not found", file_path))
+            raw_data_with_std_vars <- NULL
+          }
           raw_data_with_std_vars
         }
       )

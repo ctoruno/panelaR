@@ -8,3 +8,19 @@ The INEC's monthly ENEMDU microdata is distributed in two CSV versions: **"datos
 
 - INEC. (2021). *Estadísticas Laborales – Empleo junio 2021*. Instituto Nacional de Estadística y Censos del Ecuador. https://www.ecuadorencifras.gob.ec/empleo-junio-2021/
 - INEC. (2024). *ENEMDU 2024*. Instituto Nacional de Estadística y Censos del Ecuador. https://www.ecuadorencifras.gob.ec/enemdu-2024/
+
+
+## What to write about every survey:
+
+The description for each survey should be able to answer the following questions:
+
+1. For how long has the survey been running in the country?
+2. How often is data collected? Monthly? Quarters?
+3. When was the last methodology or sample redesign? Also, since which year and month/quarter is the data comparable due to these redesigns?
+4. If the last methodology/sample redesigned occured before or during the the global COVID pandemic, did the pandemic affect the data collection and/or comparability of the data? If yes, what is suggested to do and which months/quarters/years need to be considered?
+5. Do we have any data issues to consider for the current series (since last methodological/survey update)? For example, the RECALCULADO issue witgh ENEMDU in Ecuador
+6. What is the rotation scheme of the survey? Explain as clear as possible.
+7. What is the observation unit for the rotation? Dwellings? Households? People?
+
+
+Add quotes from the methodological documents for answering these questions whenever possible.
