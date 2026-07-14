@@ -20,14 +20,13 @@
 #'   or already present on disk, returned invisibly.
 #'
 #' @export
-download_ene_csv <- function(
+download_source_ene <- function(
   output_dir,
   start_year = 2020,
   end_year   = as.integer(format(Sys.Date(), "%Y")),
   overwrite  = FALSE
 ) {
 
-  # Standard rolling moving-quarter codes, in month order (01-12)
   codes <- c("01-def", "02-efm", "03-fma", "04-mam", "05-amj", "06-mjj",
              "07-jja", "08-jas", "09-aso", "10-son", "11-ond", "12-nde")
 
@@ -63,7 +62,7 @@ download_ene_csv <- function(
       }
 
       if (!url_exists(url)) {
-        next  # File not published (e.g. future months of the current year)
+        next  # File not found (maybe unpublished)
       }
 
       message(sprintf("Downloading: %s", file_name))

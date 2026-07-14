@@ -1,5 +1,5 @@
 devtools::load_all()
-path_to_data <- Sys.getenv("path_to_data")
+path_to_data <- Sys.getenv("PATH_TO_DATA")
 
 # Loading data
 periods <- lapply(
@@ -17,9 +17,9 @@ periods <- lapply(
 periods <- periods[1:(length(periods)-7)]
 
 enemdu_raw_data <- read_data(  # panelaR::read_data
-  survey = "enemdu", 
-  path_to_data = path_to_data,
-  periods = periods
+  path_to_data = file.path(
+    path_to_data, "kgl-data", "enemdu"
+  )
 )
 enemdu_full_data <- dplyr::bind_rows(enemdu_raw_data)
 

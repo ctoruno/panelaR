@@ -4,17 +4,98 @@
 \alias{link_diagnostics_tiered}
 \title{Per-period diagnostics for two-tier person linkage}
 \usage{
-link_diagnostics_tiered(linked, crosswalk)
+link_diagnostics_tiered(linked, support)
 }
 \arguments{
-\item{linked}{The \code{persons} element returned by \code{link_persons_tiered()}
-for a single period pair.}
+\item{linked}{Data frame. The \code{persons} element of
+\code{\link[=link_persons_tiered]{link_persons_tiered()}} for a single period pair, after
+\code{\link[=augment_tier1_ids]{augment_tier1_ids()}} (tier-1 rows must carry dwelling/household
+IDs; otherwise household-level metrics silently undercount).}
 
-\item{crosswalk}{The \code{households} element for the same period pair.}
+\item{support}{Data frame. Output of \code{\link[=household_link_support]{household_link_support()}} for
+the same period pair, built from the same augmented \code{linked} input.}
 }
 \value{
-One-row data frame.
+A one-row tibble:
+\describe{
+\item{period}{Character. Current-wave label of the period pair
+(\code{"YYYY-M"}).}
+
+\item{n_linked}{Integer. Person links across the two waves, both
+tiers combined.}
+\item{n_id_verified}{Integer. Person links via unchanged
+\code{id_persona} passing sex/age verification (tier 1).}
+\item{n_dwelling_fuzzy}{Integer. Person links recovered by fuzzy
+matching within dwellings (tier 2).}
+\item{pct_fuzzy}{Share of \emph{person links} from tier 2
+(\code{n_dwelling_fuzzy / n_linked}). Measures how much of the panel
+depends on fuzzy matching rather than INEC identifiers.}
+
+\item{pct_fuzzy_ambiguous}{Share of \emph{tier-2 links} whose selected
+match had a competing candidate within the ambiguity margin
+(demographic-twin risk). Conditional on tier 2: multiply by
+\code{pct_fuzzy} for the panel-wide exposure. \code{NA} when
+\code{n_dwelling_fuzzy == 0}.}
+
+\item{n_hh_mappings}{Integer. Distinct (dwelling, hogar_prev,
+hogar_curr) mappings observed across all person links.}
+\item{pct_hh_conflicted}{Share of \emph{household mappings} whose prev-
+or curr-household also appears in another mapping in the same
+dwelling — household splits, merges, or fuzzy false positives.}
+\item{pct_hh_renumbered}{Share of \strong{non-conflicted} household
+mappings (note the restricted denominator) where the hogar
+number changed across waves. The unconditional measure of INEC
+household renumbering, with splits/merges excluded from both
+numerator and denominator.}
+\item{pct_hh_fuzzy_involved}{Share of \emph{household mappings}
+containing at least one tier-2 person link — i.e., linked
+households that would have been partially or wholly lost using
+INEC IDs alone.}
+\item{med_coverage_prev}{Median across \emph{household mappings} of
+\code{n_links / hh_size_prev}: for the typical linked household, the
+share of its previous-wave members that were person-linked.
+Values around 0.7–0.9 are typical; membership churn keeps it
+below 1.}
+\item{pct_weak_support}{Share of \emph{household mappings} resting on a
+single person link that covers less than half the household on
+both sides (\code{n_links == 1} and
+\code{min(coverage_prev, coverage_curr) < 0.5}) — the size-aware flag
+for possibly coincidental links.}
+}
 }
 \description{
-Per-period diagnostics for two-tier person linkage
+Summarizes one linked period pair (t-3 -> t) produced by
+\code{\link[=link_persons_tiered]{link_persons_tiered()}} into a single row, combining person-level and
+household-level linkage quality metrics.
+}
+\section{Units and denominators}{
+
+The columns mix three units of observation, each with its own
+denominator. Shares are \strong{not} comparable across blocks without
+conversion:
+\describe{
+\item{Person links}{one row of \code{linked} = one person matched across
+the two waves. Denominator: \code{n_linked}.}
+\item{Tier-2 (fuzzy) person links}{the subset of person links
+recovered by dwelling-level fuzzy matching. Denominator:
+\code{n_dwelling_fuzzy}.}
+\item{Household mappings}{one row of \code{support} = one observed
+(dwelling, hogar_prev, hogar_curr) correspondence, typically
+aggregating ~3 person links. Denominator: \code{n_hh_mappings}, except
+where noted.}
+}
+}
+
+\examples{
+\dontrun{
+res     <- link_persons_tiered(enemdu_full_data, 2021, 7, 2021, 4)
+persons <- augment_tier1_ids(res$persons, roster_prev)
+support <- household_link_support(persons, roster_prev, roster_curr)
+link_diagnostics_tiered(persons, support)
+}
+
+}
+\seealso{
+\code{\link[=link_persons_tiered]{link_persons_tiered()}}, \code{\link[=household_link_support]{household_link_support()}},
+\code{\link[=augment_tier1_ids]{augment_tier1_ids()}}
 }

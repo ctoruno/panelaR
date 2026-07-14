@@ -2,9 +2,10 @@
 
 export(augment_tier1_ids)
 export(derive_household_crosswalk)
-export(download_ene_csv)
-export(enemdu_download_match)
-export(enemdu_download_source)
+export(download_data)
+export(download_source_ene)
+export(download_source_enemdu)
+export(download_source_enoe)
 export(estimate_overlap)
 export(household_link_support)
 export(link_diagnostics)

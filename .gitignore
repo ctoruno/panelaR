@@ -3,3 +3,9 @@
 .RData
 .Ruserdata
 .Renviron
+*.xlsx
+*.csv
+*.sav
+*.ODS
+*.zip
+/.vscode

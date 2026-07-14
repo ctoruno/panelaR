@@ -4,36 +4,71 @@
 \alias{read_data}
 \title{Read raw survey microdata}
 \usage{
-read_data(survey, path_to_data, periods)
+read_data(path_to_data, col_types = NULL)
 }
 \arguments{
-\item{survey}{Character. Survey identifier (case-insensitive). One of:
-\describe{
-\item{\code{"eph"}}{Encuesta Permanente de Hogares — Argentina (INDEC)}
-\item{\code{"pnadc"}}{Pesquisa Nacional por Amostra de Domicílios Contínua — Brazil (IBGE)}
-\item{\code{"enoe"}}{Encuesta Nacional de Ocupación y Empleo — Mexico (INEGI)}
-\item{\code{"enemdu"}}{Encuesta Nacional de Empleo, Desempleo y Subempleo — Ecuador (INEC)}
-\item{\code{"ene"}}{Encuesta Nacional de Empleo — Chile (INE)}
-}}
+\item{path_to_data}{Character. Path to the directory containing the raw
+\code{.csv} microdata files. Searched non-recursively.}
 
-\item{path_to_data}{Character. Path to the root directory that contains the
-country-specific sub-folders with the raw microdata files.}
+\item{col_types}{Extra column-type overrides, merged into the built-in
+defaults. Accepts either form:
+\describe{
+\item{a \code{readr::cols()} spec}{applied to every survey — the usual
+case, since \code{path_to_data} normally holds a single survey.}
+\item{a named list of \code{readr::cols()} specs}{keyed by survey
+(\code{"enemdu"}, \code{"ene"}, \code{"enoe"}), to override a
+particular survey only.}
+}
+User-supplied columns take precedence over the built-in default for the
+same column; every other default is preserved, and any column mentioned by
+neither is still type-guessed by \code{readr}. Defaults to \code{NULL}
+(built-in defaults only).}
 }
 \value{
-A nested list of data frames: the outer list is indexed by year, the
-inner list by month. Each data frame contains the raw microdata for that
-period plus the derived columns \code{year} (integer), \code{month}
-(integer), and \code{quarter} (character, e.g. \code{"Q1"}).
+A named list of data frames, one element per \code{.csv} file, named
+after the file without its \code{.csv} extension (e.g.
+\code{"enemdu_persona_2024_01"}). Files that match no known pattern
+contribute a \code{NULL} element. Each recognised data frame holds the raw
+microdata plus the derived columns \code{year} (integer), \code{period}
+(integer month), and \code{quarter} (character, e.g. \code{"Q1"}).
 }
 \description{
-Loads individual-level microdata from one of the supported Latin American
-household labour surveys and returns a nested list organised by year and
-month, with standardised \code{year}, \code{month}, and \code{quarter}
-columns appended to each data frame.
+Reads every \code{.csv} file in \code{path_to_data}, infers which survey each
+file belongs to from its file name, and loads it with survey-specific column
+types. Files whose names match no known survey pattern are skipped with a
+message. Each recognised file gains standardised \code{year}, \code{period},
+and \code{quarter} columns.
+}
+\details{
+The survey is detected from the file name using these patterns:
+\describe{
+\item{\code{"enemdu"}}{Encuesta Nacional de Empleo, Desempleo y Subempleo
+— Ecuador (INEC). Files named \code{enemdu_persona_YYYY_MM.csv}.}
+\item{\code{"ene"}}{Encuesta Nacional de Empleo — Chile (INE). Files named
+\code{ene-YYYY-MM-MMM.csv}.}
+\item{\code{"enoe"}}{Encuesta Nacional de Ocupación y Empleo — Mexico
+(INEGI). Files named \code{ENOE_<TABLE>T<Q><YY>.csv}. (In progress.)}
+}
+
+This function expects the directory layout produced by
+\code{\link{download_data}}: \code{path_to_data} should point at the survey
+sub-folder (e.g. \code{data/raw/enemdu}) holding the CSV files.
 }
 \examples{
 \dontrun{
-data <- read_data(survey = "enemdu", path_to_data = "data/raw")
+data <- read_data(path_to_data = "data/raw/enemdu")
+
+# Force an extra column to be read as character (applies to every survey)
+enoe <- read_data(
+  path_to_data = "data/raw/enoe",
+  col_types = readr::cols(r_def = readr::col_character())
+)
+
+# Override a single survey explicitly
+data <- read_data(
+  path_to_data = "data/raw",
+  col_types = list(enemdu = readr::cols(area = readr::col_character()))
+)
 }
 
 }

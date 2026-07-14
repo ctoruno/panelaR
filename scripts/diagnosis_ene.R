@@ -1,5 +1,5 @@
 devtools::load_all()
-path_to_data <- Sys.getenv("path_to_data")
+path_to_data <- Sys.getenv("PATH_TO_DATA")
 
 # Loading data
 periods <- lapply(
@@ -17,14 +17,14 @@ periods <- lapply(
 periods <- periods[1:(length(periods)-8)]
 
 ene_raw_data <- read_data(  # panelaR::read_data
-  survey = "ene", 
-  path_to_data = path_to_data,
-  periods = periods
+  path_to_data = file.path(
+    path_to_data, "kgl-data", "ene"
+  )
 )
 ene_full_data <- dplyr::bind_rows(ene_raw_data) |>
   dplyr::filter(mes_central == mes_encuesta)  # We drop duplicated values from the mobile-quarter
 
-# Assessing the theoretical overlap between quarters (50%)
+# Assessing the theoretical overlap between quarters (83.33%)
 overlap_tables <- lapply(
   c(
     "households" = "id_identificacion",
