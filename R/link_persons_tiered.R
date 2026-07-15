@@ -1,18 +1,40 @@
 #' Two-tier person linkage: verified IDs first, dwelling fuzzy residual
 #'
-#' Tier 1 trusts INEC's \code{id_persona} where the sex/age verification
-#' passes (\code{\link{verify_person_link}}). Tier 2 fuzzy-matches the
-#' residual within dwellings. The \code{match_tier} column lets every
-#' downstream statistic be computed with and without the fuzzy tier as a
-#' robustness check.
+#' Tier 1 trusts the survey's own person identifier where the sex/age
+#' verification passes (\code{\link{verify_person_link}}). Tier 2
+#' fuzzy-matches the residual within dwellings
+#' (\code{\link{match_residual_within_dwelling}}). The \code{match_tier}
+#' column lets every downstream statistic be computed with and without the
+#' fuzzy tier as a robustness check.
+#'
+#' Both tiers run at their defaults: the tier-1 \code{age_gap_tolerance} and
+#' the tier-2 \code{age_gap_window} / \code{ambiguity_margin} are not exposed
+#' here. Call the two matchers directly to tune them.
 #'
 #' @inheritParams match_residual_within_dwelling
-#' @param ... Passed on to \code{match_residual_within_dwelling}.
 #'
-#' @return List with \code{persons} (stacked matches with
-#'   \code{match_tier} in \code{c("id_verified", "dwelling_fuzzy")}) and
-#'   \code{households} (crosswalk from
-#'   \code{\link{derive_household_crosswalk}}).
+#' @return A list with two elements:
+#'   \describe{
+#'     \item{\code{persons}}{Tier-1 and tier-2 matches stacked, with
+#'       \code{match_tier} in \code{c("id_verified", "dwelling_fuzzy")}.
+#'       The tiers carry different columns, so the stack is ragged: tier-1
+#'       rows are \code{NA} for \code{id_dwelling}, the household ID pair,
+#'       \code{score}, \code{ambiguous} and \code{n_hh_links}; tier-2 rows
+#'       are \code{NA} for \code{sex_ok}, \code{age_ok}, \code{line_ok} and
+#'       \code{verified}. Use \code{\link{augment_tier1_ids}} to recover the
+#'       dwelling and household IDs on tier-1 rows.}
+#'     \item{\code{households}}{Household crosswalk from
+#'       \code{\link{derive_household_crosswalk}}, computed on the tier-2
+#'       matches \emph{only} — tier-1 rows carry no household columns to vote
+#'       with, so support is understated for households whose members were
+#'       mostly recovered by tier 1. Prefer
+#'       \code{\link{household_link_support}} (after
+#'       \code{\link{augment_tier1_ids}}), which counts both tiers and scales
+#'       the counts by household size.}
+#'   }
+#'
+#' @seealso \code{\link{augment_tier1_ids}} and
+#'   \code{\link{household_link_support}} for tier-aware household analysis.
 #'
 #' @export
 link_persons_tiered <- function(

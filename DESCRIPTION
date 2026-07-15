@@ -21,3 +21,6 @@ Imports:
 Config/roxygen2/version: 8.0.0
 Depends:
     R (>= 4.0.0)
+Suggests: 
+    quarto
+Config/Needs/website: quarto

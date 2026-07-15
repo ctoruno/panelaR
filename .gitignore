@@ -9,3 +9,4 @@
 *.ODS
 *.zip
 /.vscode
+**/.quarto/

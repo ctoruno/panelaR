@@ -2,3 +2,6 @@
 ^renv\.lock$
 ^panelaR\.Rproj$
 ^\.Rproj\.user$
+^vignettes/articles/\.quarto$
+^vignettes/articles/*_files$
+^vignettes/articles$

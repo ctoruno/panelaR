@@ -1,7 +1,7 @@
-#' Fuzzy-match persons within dwellings across two ENEMDU periods
+#' Fuzzy-match persons within dwellings across two survey waves
 #'
 #' Matches persons across two survey waves using the dwelling
-#' (\code{id_vivienda}) as the only hard anchor, so that household
+#' (\code{id_dwelling}) as the only hard anchor, so that household
 #' renumbering within a dwelling and person-line reshuffling within a
 #' household cannot break the link. Household number and roster line are
 #' used as \emph{soft} evidence in the match score, not as join keys.
@@ -38,7 +38,7 @@
 #'   \code{id_person} values already matched by the ID-based tier, to be
 #'   removed from the candidate pool on each side.
 #' @param id_dwelling,id_household,id_person Character. Column names.
-#' @param sex,age,line Character. Column names (ENEMDU: p02, p03, p04).
+#' @param sex,age,line Character. Column names (e.g. ENEMDU: p02, p03, p04).
 #' @param age_gap_window Integer length-2. Inclusive feasible range for
 #'   \code{age_curr - age_prev}.
 #' @param ambiguity_margin Numeric. Score margin below which a competing
