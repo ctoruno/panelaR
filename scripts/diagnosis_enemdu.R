@@ -15,28 +15,12 @@ person_full_data <- dplyr::bind_rows(person_data)
 rm(enemdu_raw_data) # To clear memory usage
 
 # ---- Input sanity: one id_persona per wave -----------------------------------
-# Both the ID-based and the fuzzy matcher assume id_persona is unique within a
-# (year, period). If it is not, the person-level inner join fans out and every
-# downstream count (overlap rates, tier-1 matches, household support) is
-# silently inflated. The usual cause is stacking a sub-module onto the person
-# file -> e.g. persona_tics, which shares id_persona (see the filter above).
-id_period_duplicates <- person_full_data |>
-  dplyr::count(year, period, id_persona, name = "n_rows") |>
-  dplyr::filter(n_rows > 1)
+# The usual cause of duplication is stacking a sub-module onto the person file
+# e.g. persona_tics, which shares id_persona (see the filter above).
 
-if (nrow(id_period_duplicates) > 0) {
-  n_waves <- id_period_duplicates |>
-    dplyr::distinct(year, period) |>
-    nrow()
-  warning(glue::glue(
-    "id_persona is NOT unique within period: {nrow(id_period_duplicates)} ",
-    "duplicated id-period combination(s) across {n_waves} wave(s). The ",
-    "person-level join will fan out and inflate every downstream count. ",
-    "Inspect `id_period_duplicates`."
-  ))
-} else {
-  message("[ok] id_persona is unique within every period.")
-}
+id_period_duplicates <- check_unique_id_per_period(  # panelaR::check_unique_id_per_period
+  person_full_data, "id_persona", "ENEMDU person file"
+)
 
 # ---- Wave grid ---------------------------------------------------------------
 # ENEMDU's rotating panel takes a dwelling out of the sample for two quarters,
@@ -45,22 +29,14 @@ if (nrow(id_period_duplicates) > 0) {
 # and tags its output with `prev_lag`.
 
 prev_lags <- c(3, 9)
-shift_month <- function(year, month, back) {
-  idx <- (year * 12 + (month - 1)) - back
-  tibble::tibble(year = idx %/% 12, period = idx %% 12 + 1)
-}
-waves_observed <- person_full_data |>
-  dplyr::distinct(year, period) |>
-  dplyr::mutate(key = year * 100 + period) |>
-  dplyr::pull(key)
-has_wave <- function(y, p) (y * 100 + p) %in% waves_observed
+observed_waves <- dplyr::distinct(person_full_data, year, period)
 
 wave_pairs <- person_full_data |>
   dplyr::distinct(curr_year = year, curr_period = period) |>
   tidyr::expand_grid(prev_lag = prev_lags) |>
-  dplyr::mutate(prev = shift_month(curr_year, curr_period, prev_lag)) |>
+  dplyr::mutate(prev = shift_t(curr_year, curr_period, prev_lag, by = "month")) |>  # panelaR::shift_t
   tidyr::unpack(prev, names_sep = "_") |>
-  dplyr::filter(has_wave(prev_year, prev_period)) |>
+  dplyr::filter(has_wave(prev_year, prev_period, observed_waves)) |>  # panelaR::has_wave
   dplyr::mutate(
     curr_wave = sprintf("%d-%02d", curr_year, curr_period),
     prev_wave = sprintf("%d-%02d", prev_year, prev_period)
@@ -89,11 +65,6 @@ meta_rows <- wave_pairs |>
 # This script exists to test whether ENEMDU's data matches its design, so the
 # assumption gets asserted rather than trusted.
 
-ids_in_wave <- function(y, p, id) {
-  keep <- person_full_data$year == y & person_full_data$period == p
-  unique(person_full_data[[id]][keep])
-}
-
 rotation_check <- wave_pairs |>
   dplyr::count(curr_year, curr_period, curr_wave) |>
   dplyr::filter(n == length(prev_lags)) |>   # both lags exist -> checkable
@@ -101,16 +72,16 @@ rotation_check <- wave_pairs |>
   purrr::pmap(
     \(curr_year, curr_period, curr_wave) {
 
-      w3 <- shift_month(curr_year, curr_period, 3)
-      w9 <- shift_month(curr_year, curr_period, 9)
+      w3 <- shift_t(curr_year, curr_period, 3, by = "month")  # panelaR::shift_t
+      w9 <- shift_t(curr_year, curr_period, 9, by = "month")
 
       n_in_both <- function(id) {
         length(Reduce(
           intersect,
           list(
-            ids_in_wave(curr_year, curr_period, id),
-            ids_in_wave(w3$year, w3$period, id),
-            ids_in_wave(w9$year, w9$period, id)
+            ids_in_wave(person_full_data, curr_year, curr_period, id),  # panelaR::ids_in_wave
+            ids_in_wave(person_full_data, w3$year, w3$period, id),
+            ids_in_wave(person_full_data, w9$year, w9$period, id)
           )
         ))
       }
@@ -213,7 +184,7 @@ id_diagnostic <- purrr::map2(
     dplyr::bind_cols(
       meta,
       link_diagnostics(linked) |>   # panelaR::link_diagnostics
-        dplyr::select(-period)      # curr_wave already carries the label
+        dplyr::select(-period)
     )
   }
 ) |>
@@ -225,16 +196,6 @@ readr::write_csv(
 )
 
 # ---- Tier 1 + Tier 2: two-tier linkage ---------------------------------------
-roster_of <- function(y, p) {
-  person_full_data |>
-    dplyr::filter(year == y, period == p) |>
-    dplyr::select(
-      id_dwelling  = id_vivienda,
-      id_household = id_hogar,
-      id_person    = id_persona
-    )
-}
-
 linked_all <- purrr::pmap(
   wave_pairs,
   \(curr_year, curr_period, prev_lag, prev_year, prev_period, curr_wave, prev_wave) {
@@ -258,8 +219,14 @@ linked_all <- purrr::pmap(
       prev_wave = prev_wave
     )
 
-    roster_prev <- roster_of(prev_year, prev_period)
-    roster_curr <- roster_of(curr_year, curr_period)
+    roster_prev <- roster_of(  # panelaR::roster_of
+      person_full_data, prev_year, prev_period,
+      "id_vivienda", "id_hogar", "id_persona"
+    )
+    roster_curr <- roster_of(
+      person_full_data, curr_year, curr_period,
+      "id_vivienda", "id_hogar", "id_persona"
+    )
 
     if (nrow(res$persons) == 0) {
       return(list(

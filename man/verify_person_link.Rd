@@ -42,8 +42,9 @@ previous observation.}
 \item{line}{Character. Name of the column in \code{data} containing lineage
 to the household head.}
 
-\item{age_gap_tolerance}{Integer. Maximum age gap displayed by an individual
-to be considered linked.}
+\item{age_gap_tolerance}{Integer. Maximum absolute age gap displayed by an
+individual to be considered linked. Defaults to 1: over a quarterly gap
+the expected aging is 0 or 1 completed year.}
 }
 \value{
 A data frame with one row per respondent ID present in \emph{both}
@@ -55,7 +56,8 @@ periods. Columns include the suffixed sociodemographic variables
 \item{\code{sex_ok}}{Logical. \code{TRUE} when sex matches across
 periods.}
 \item{\code{age_gap}}{Integer. Difference \code{age_curr - age_prev}.}
-\item{\code{age_ok}}{Logical. \code{TRUE} when \code{abs(age_gap) <= 2}.}
+\item{\code{age_ok}}{Logical. \code{TRUE} when
+\code{abs(age_gap) <= age_gap_tolerance}.}
 \item{\code{line_ok}}{Logical. \code{TRUE} when lineage to household head
 matches (informational only — not used in \code{verified}).}
 \item{\code{verified}}{Logical. \code{TRUE} when both \code{sex_ok} and
@@ -66,7 +68,8 @@ matches (informational only — not used in \code{verified}).}
 Extracts a subset of sociodemographic variables for a respondent ID column
 in two survey periods (current and previous), then performs an inner join to
 identify matched respondents. A match is considered \emph{verified} when sex
-is identical and the age difference between periods is at most 2 years.
+is identical and the age difference between periods is at most
+\code{age_gap_tolerance} years.
 Lineage to the household head (\code{line}) is joined and exposed for
 inspection but is intentionally excluded from the verification criterion,
 since a respondent's relationship to the household head can legitimately

@@ -55,26 +55,8 @@ rm(enoe_raw_data, viv_data, viv_full_data, sdem_data, sdem_full_data) # To clear
 # the dwelling key for the VIV table. If a concatenation is not fine-grained
 # enough, the join fans out and every count (overlap rates, tier-1 matches,
 # household support) is silently inflated.
-check_unique_id_per_period <- function(data, id_col, label) {
-  dups <- data |>
-    dplyr::count(year, period, id = .data[[id_col]], name = "n_rows") |>
-    dplyr::filter(n_rows > 1)
 
-  if (nrow(dups) > 0) {
-    n_waves <- dplyr::n_distinct(dups$year, dups$period)
-    warning(glue::glue(
-      "{id_col} is NOT unique within period in {label}: {nrow(dups)} duplicated ",
-      "id-period combination(s) across {n_waves} wave(s). Downstream joins will ",
-      "fan out and inflate every count. Revisit the ID concatenation."
-    ))
-  } else {
-    message(glue::glue("[ok] {id_col} is unique within every period in {label}."))
-  }
-
-  invisible(dups)
-}
-
-sdem_id_duplicates <- check_unique_id_per_period(
+sdem_id_duplicates <- check_unique_id_per_period(  # panelaR::check_unique_id_per_period
   sdem_full_data_with_ids, "id_respondent", "SDEM roster"
 )
 viv_id_duplicates <- check_unique_id_per_period(
@@ -86,25 +68,14 @@ viv_id_duplicates <- check_unique_id_per_period(
 # look-back: a respondent interviewed in quarter t was last interviewed in t-1
 # quarter.
 prev_lags <- 1
-
-shift_quarter <- function(year, quarter, back) {
-  idx <- (year * 4 + (quarter - 1)) - back
-  tibble::tibble(year = idx %/% 4, period = idx %% 4 + 1)
-}
-
-waves_observed <- sdem_full_data_with_ids |>
-  dplyr::distinct(year, period) |>
-  dplyr::mutate(key = year * 10 + period) |>
-  dplyr::pull(key)
-
-has_wave <- function(y, p) (y * 10 + p) %in% waves_observed
+observed_waves <- dplyr::distinct(sdem_full_data_with_ids, year, period)
 
 wave_pairs <- sdem_full_data_with_ids |>
   dplyr::distinct(curr_year = year, curr_period = period) |>
   tidyr::expand_grid(prev_lag = prev_lags) |>
-  dplyr::mutate(prev = shift_quarter(curr_year, curr_period, prev_lag)) |>
+  dplyr::mutate(prev = shift_t(curr_year, curr_period, prev_lag, by = "quarter")) |>  # panelaR::shift_t
   tidyr::unpack(prev, names_sep = "_") |>
-  dplyr::filter(has_wave(prev_year, prev_period)) |>
+  dplyr::filter(has_wave(prev_year, prev_period, observed_waves)) |>  # panelaR::has_wave
   dplyr::mutate(
     curr_wave = sprintf("%d-Q%d", curr_year, curr_period),
     prev_wave = sprintf("%d-Q%d", prev_year, prev_period)
@@ -195,16 +166,6 @@ readr::write_csv(
 )
 
 # ---- Tier 1 + Tier 2: two-tier linkage ---------------------------------------
-roster_of <- function(y, p) {
-  sdem_full_data_with_ids |>
-    dplyr::filter(year == y, period == p) |>
-    dplyr::select(
-      id_dwelling,
-      id_household,
-      id_person = id_respondent
-    )
-}
-
 linked_all <- purrr::pmap(
   wave_pairs,
   \(curr_year, curr_period, prev_lag, prev_year, prev_period, curr_wave, prev_wave) {
@@ -228,8 +189,14 @@ linked_all <- purrr::pmap(
       prev_wave = prev_wave
     )
 
-    roster_prev <- roster_of(prev_year, prev_period)
-    roster_curr <- roster_of(curr_year, curr_period)
+    roster_prev <- roster_of(  # panelaR::roster_of
+      sdem_full_data_with_ids, prev_year, prev_period,
+      "id_dwelling", "id_household", "id_respondent"
+    )
+    roster_curr <- roster_of(
+      sdem_full_data_with_ids, curr_year, curr_period,
+      "id_dwelling", "id_household", "id_respondent"
+    )
 
     # No links at all would mean both id_respondent and id_dwelling are
     # reassigned across the quarter -- a finding, not a reason to crash.

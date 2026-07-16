@@ -2,7 +2,7 @@
 % Please edit documentation in R/match_residual_within_dwelling.R
 \name{match_residual_within_dwelling}
 \alias{match_residual_within_dwelling}
-\title{Fuzzy-match persons within dwellings across two ENEMDU periods}
+\title{Fuzzy-match persons within dwellings across two survey waves}
 \usage{
 match_residual_within_dwelling(
   data,
@@ -34,7 +34,7 @@ removed from the candidate pool on each side.}
 
 \item{id_dwelling, id_household, id_person}{Character. Column names.}
 
-\item{sex, age, line}{Character. Column names (ENEMDU: p02, p03, p04).}
+\item{sex, age, line}{Character. Column names (e.g. ENEMDU: p02, p03, p04).}
 
 \item{age_gap_window}{Integer length-2. Inclusive feasible range for
 \code{age_curr - age_prev}.}
@@ -51,7 +51,7 @@ in the dwelling — 1 means an unsupported single-person match), and
 }
 \description{
 Matches persons across two survey waves using the dwelling
-(\code{id_vivienda}) as the only hard anchor, so that household
+(\code{id_dwelling}) as the only hard anchor, so that household
 renumbering within a dwelling and person-line reshuffling within a
 household cannot break the link. Household number and roster line are
 used as \emph{soft} evidence in the match score, not as join keys.

@@ -10,13 +10,17 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Imports:
     devtools,
+    dplyr,
     eph,
+    glue,
     haven,
     here,
     httr2,
     purrr,
     readr,
+    rlang,
     stringr,
+    tibble,
     tidyr
 Config/roxygen2/version: 8.0.0
 Depends:
