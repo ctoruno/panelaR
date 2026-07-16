@@ -1,0 +1,11 @@
+url: ~
+template:
+  bootstrap: 5
+navbar:
+  structure:
+    right: [search, github]
+  components:
+    github:
+      icon: fab fa-github fa-lg
+      href: https://github.com/ctoruno/panelaR
+      aria-label: GitHub repository

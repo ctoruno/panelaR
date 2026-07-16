@@ -1,0 +1,38 @@
+<svg viewBox="0 0 400 460" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Outer hex border -->
+  <polygon points="200,6 393,118 393,342 200,454 7,342 7,118"
+           fill="#04151f"/>
+
+  <!-- Inner hex (background) -->
+  <polygon points="200,20 381,125 381,335 200,440 19,335 19,125"
+           fill="#f6e8cb"/>
+
+  <!-- Panela block (thin slab, 3/4 view) -->
+  <g>
+    <!-- soft shadow -->
+    <ellipse cx="199" cy="268" rx="98" ry="12" fill="#04151f" opacity="0.15"/>
+
+    <!-- right side face (darkest) -->
+    <polygon points="274,190 274,250 308,230 308,170" fill="#3c4237"/>
+
+    <!-- front face -->
+    <polygon points="110,190 274,190 274,250 110,250" fill="#736f4e"/>
+
+    <!-- top face (highlight) -->
+    <polygon points="110,190 274,190 308,170 144,170" fill="#f3cfbb"/>
+
+    <!-- ribbon accent, front -->
+    <polygon points="182,190 196,190 196,250 182,250" fill="#8c271e"/>
+    <!-- ribbon accent, top -->
+    <polygon points="182,190 196,190 230,170 216,170" fill="#8c271e"/>
+  </g>
+
+  <!-- Package name -->
+  <text x="95" y="345"
+        font-family="Helvetica, Arial, sans-serif" font-weight="700"
+        font-size="54">
+    <tspan fill="#736f4e">panela</tspan><tspan x="266" fill="#3c4237">R</tspan>
+  </text>
+
+</svg>

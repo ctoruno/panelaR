@@ -1,11 +1,21 @@
 Package: panelaR
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
+Title: Diagnose Panel Structure in Latin American Labor Force Surveys
+Version: 0.1.0
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+    person("Carlos", "Toruño", , "carlostor@iadb.org", role = c("aut", "cre"))
+Description: Links respondents across waves of rotating-panel household
+    surveys in Latin America and measures how well that linkage holds. Many
+    national labor force surveys re-interview the same dwellings over several
+    waves, but the resulting panel is rarely documented or validated:
+    identifiers get reused, households get renumbered, and roster lines get
+    reshuffled. Cross-wave links are built in two tiers, first trusting the
+    survey's own person identifier where sex and age gaps corroborate it, then
+    fuzzy-matching the residual within each dwelling. Diagnostics are reported
+    at the wave level so users can judge whether a survey's panel matches its
+    own design. Currently supports 'ENEMDU' (Ecuador), 'ENE' (Chile) and 'ENOE'
+    (Mexico), including helpers to download the microdata from the national
+    statistical offices.
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Imports:

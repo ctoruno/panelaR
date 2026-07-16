@@ -1,0 +1,255 @@
+---
+title: "Downloading Data from Source"
+knitr:
+  opts_chunk:
+    collapse: true
+    comment: '#>'
+    eval: false
+---
+
+```{r}
+#| label: setup
+#| eval: true
+library(panelaR)
+```
+
+::: {.callout-important}
+## None of the code in this article is executed
+
+Every chunk below is shown for illustration only (`eval: false`). A full run of
+these downloaders pulls several years of monthly microdata from three national
+statistics offices and takes hours, so the article is rendered without running
+it. Copy the chunks into your own session when you actually want the data.
+:::
+
+This article walks through
+[`scripts/downloading_data_from_source.R`](https://github.com/ctoruno/panelaR/blob/main/scripts/downloading_data_from_source.R),
+the script we use to assemble the raw microdata that `panelaR` works on. It has
+two jobs, and both matter:
+
+1. **Download** the published microdata for each survey straight from the
+   statistical office that produces it (INEC, INE, INEGI).
+2. **Flatten** the resulting mess of per-month/per-quarter folders into one
+   directory of CSV files per survey, which is the layout
+   [`read_data()`](../reference/read_data.html) expects.
+
+Throughout, the destination root is taken from an environment variable so the
+script contains no machine-specific paths. Set `PATH_TO_DATA` in your
+`.Renviron` to wherever you keep the data.
+
+```{r}
+#| label: setup-path
+library(panelaR)
+path_to_data <- Sys.getenv("PATH_TO_DATA")
+```
+
+## Downloading ECU-ENEMDU resources
+
+`download_source_enemdu()` walks every month from `start_year` (2021 by
+default, the first year of the post-redesign series) up to the current month,
+downloads the CSV and/or SPSS package for each, extracts it into a `YYYY_MM`
+subfolder and deletes the ZIP. Months that are already extracted are skipped,
+so the function is safe to re-run as new months are published.
+
+```{r}
+#| label: download-enemdu
+download_source_enemdu(
+  file.path(
+    path_to_data,
+    "ECU-ENEMDU", "source-raw"
+  )
+)
+```
+
+### Why downloading straight from source is fragile here
+
+INEC does not publish ENEMDU behind a stable, predictable set of URLs. The
+institution is not consistent in either its **file naming** or its **filing
+structure**, and both drift over time:
+
+- The month folder separator changed mid-series, from `Mes-Año` (hyphen, used
+  through mid-2022) to `Mes_Año` (underscore, used since).
+- Some months carry a `_RECALCULADO` suffix in the file name and some do not.
+- The CSV ("Datos Abiertos") and SPSS packages follow two different naming
+  templates and are not always published in the same month or at the same time.
+
+`download_source_enemdu()` absorbs this by building every plausible URL for a
+given month/format and probing them with a `HEAD` request until one resolves.
+That handles most of the drift, but it cannot invent a file that was never
+published under any of those patterns — and a handful of months genuinely are
+not there.
+
+### The months that must be downloaded by hand
+
+```{r}
+#| label: enemdu-manual-gaps
+# From Jan-2021 to May-2021, data is not found and has to be manually downloaded from website: https://aplicaciones3.ecuadorencifras.gob.ec/BIINEC-war/
+# From Jun-2022 to Jul-2022, data is not found and has to be manually downloaded from website: https://aplicaciones3.ecuadorencifras.gob.ec/BIINEC-war/
+# Data for Dec-2022 (CSV) is not found and has to be manually downloaded from website: https://aplicaciones3.ecuadorencifras.gob.ec/BIINEC-war/
+# Data for Jul-2023 (SPSS) is not found and has to be manually downloaded from website: https://aplicaciones3.ecuadorencifras.gob.ec/BIINEC-war/
+```
+
+**January 2021 to May 2021** is the *RECALCULADO* case, and it is worth
+understanding rather than just working around. Those months belong to the
+recalculated ENEMDU series: after the 2021 redesign, INEC reprocessed the
+Sep-2020–May-2021 files and republished them as `..._RECALCULADO` packages.
+The recalculated versions are the ones you want — they are the ones consistent
+with the post-redesign series — but they are not exposed under the regular
+monthly URL pattern that every other month follows, so no combination of
+separator and suffix resolves for them. They have to be pulled from INEC's
+BIINEC data portal instead.
+
+The remaining gaps (Jun–Jul 2022, the Dec-2022 CSV, the Jul-2023 SPSS) are
+plain publishing omissions from the web directory: the same data is available
+in BIINEC, it simply is not filed where the rest of the series lives.
+
+::: {.callout-warning}
+## This manual step is required, not optional
+
+The flattening step below reads from **both** `source-raw/` (what the
+downloader fetched) and `manual_download/` (what you fetched by hand). If you
+skip the manual download, those months are simply missing from the final
+dataset, and any panel you build across them will have holes.
+:::
+
+So, before going further:
+
+1. Open [INEC's BIINEC portal](https://aplicaciones3.ecuadorencifras.gob.ec/BIINEC-war/).
+2. Download the packages for the months listed above.
+3. Unpack them anywhere under
+   `<PATH_TO_DATA>/ECU-ENEMDU/manual_download/` — the layout inside that folder
+   does not matter, because the next step searches it recursively.
+
+### Flattening ENEMDU into a single directory
+
+Downloading is not the end of it. `download_source_enemdu()` leaves you with one
+folder per month, and your manual downloads sit in a separate tree entirely.
+[`read_data()`](../reference/read_data.html) does not walk directories — it
+lists the CSV files in **one** directory, non-recursively, and infers each
+file's survey from its name. So the last step is to collect every CSV from both
+trees into a single flat `source/` folder.
+
+```{r}
+#| label: flatten-enemdu
+dest_folder <- file.path(
+  path_to_data, "ECU-ENEMDU", "source"
+)
+dir.create(dest_folder, showWarnings = FALSE)
+
+enemdu_csv_files <- list.files(
+  c(
+    file.path(path_to_data, "ECU-ENEMDU", "source-raw"),
+    file.path(path_to_data, "ECU-ENEMDU", "manual_download")
+  ),
+  pattern = "\\.csv$",
+  recursive = TRUE,
+  full.names = TRUE,
+  ignore.case = TRUE
+)
+
+for (source_file in enemdu_csv_files){
+  file.copy(from = source_file, to = dest_folder, overwrite = FALSE)
+  message(
+    glue::glue("[info] File: {source_file} copied!!")
+  )
+}
+```
+
+Note `overwrite = FALSE`: if a month exists in both trees, whatever landed
+first wins and the copy is a no-op. This is what makes the step re-runnable —
+run it again after downloading a newly published month and only the new files
+are copied.
+
+The result, `<PATH_TO_DATA>/ECU-ENEMDU/source/`, is what you hand to
+`read_data()`.
+
+## Downloading CHL-ENE resources
+
+Chile's INE is the easy case. Its files live under a stable URL pattern
+(`ene-YYYY-MM-MMM.csv`, one per rolling moving quarter) and are published as
+plain CSVs rather than ZIPs — so there is no extraction, no per-period folder,
+and consequently nothing to flatten. `download_source_ene()` writes the files
+straight into `output_dir` in the layout `read_data()` already wants.
+
+```{r}
+#| label: download-ene
+download_source_ene(
+  file.path(
+    path_to_data, "CHL-ENE", "source-raw"
+  )
+)
+```
+
+Files that are not yet published (future months of the current year) are
+skipped after a `HEAD` check, and files already on disk are left alone unless
+you pass `overwrite = TRUE`.
+
+## Downloading MEX-ENOE resources
+
+INEGI publishes ENOE quarterly, as ZIP archives. Like INEC, it has changed its
+naming convention over time — three schemes so far
+(`2019trim4_csv.zip`, `enoe_n_2021_trim3_csv.zip`, `enoe_2024_trim1_csv.zip`) —
+and `download_source_enoe()` resolves the right one per period automatically.
+Each archive is extracted into a per-period subfolder of `output_dir`.
+
+```{r}
+#| label: download-enoe
+download_source_enoe(
+  file.path(
+    path_to_data, "MEX-ENOE", "source-raw"
+  )
+)
+```
+
+By default it downloads from 2023 onward (the start of the current ENOE
+design) through the current year, in both CSV and DTA. You can target specific
+quarters instead with `periods`, e.g.
+`download_source_enoe(dir, periods = c("2023_01", "2024_04"))`.
+
+Because the archives extract into per-period folders, ENOE needs the same
+flattening step as ENEMDU — the only difference being that there is no manual
+download tree to merge in:
+
+```{r}
+#| label: flatten-enoe
+dest_folder <- file.path(
+  path_to_data, "MEX-ENOE", "source"
+)
+dir.create(dest_folder, showWarnings = FALSE)
+
+enoe_csv_files <- list.files(
+  c(
+    file.path(path_to_data, "MEX-ENOE", "source-raw")
+  ),
+  pattern = "\\.csv$",
+  recursive = TRUE,
+  full.names = TRUE,
+  ignore.case = TRUE
+)
+
+for (source_file in enoe_csv_files){
+  file.copy(from = source_file, to = dest_folder, overwrite = FALSE)
+  message(
+    glue::glue("[info] File: {source_file} copied!!")
+  )
+}
+```
+
+## Where you end up
+
+Once the script has run, you have one flat directory per survey:
+
+| Survey | Directory | Produced by |
+|---|---|---|
+| ENEMDU (Ecuador) | `<PATH_TO_DATA>/ECU-ENEMDU/source/` | downloader + manual BIINEC downloads, flattened |
+| ENE (Chile) | `<PATH_TO_DATA>/CHL-ENE/source-raw/` | downloader (already flat) |
+| ENOE (Mexico) | `<PATH_TO_DATA>/MEX-ENOE/source/` | downloader, flattened |
+
+Each of these can be passed directly to `read_data()`:
+
+```{r}
+#| label: read-data
+enemdu <- read_data(
+  path_to_data = file.path(path_to_data, "ECU-ENEMDU", "source")
+)
+```

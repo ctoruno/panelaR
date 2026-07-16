@@ -76,6 +76,8 @@ In practice: a dwelling group is interviewed in two consecutive months, sits out
 > "...se establece un traslape del 50% de la muestra entre trimestres y años..."
 > *Diseño Muestral ENEMDU*, p. 21
 
+![ENEMDU Rotation Scheme](media/enemdu_rotation.png)
+
 ### 1.7 Observation unit for rotation
 The **dwelling** (*vivienda*) is the unit of observation for the panel/rotation design:
 
@@ -155,6 +157,8 @@ Each rolling quarter, **1/18 of the total ENE sample** is refreshed (one submues
 - **83.3% (5/6)** overlap between consecutive appearances of the *same* submuestra (i.e., household-level rotation overlap, quarter to quarter for that submuestra).
 - **66.7% (2/3)** overlap between consecutive *published* rolling-quarter files, since each release shares two of its three reference months with the prior release.
 
+![ENE Rotation Scheme](media/ene_rotation.png)
+
 ### 2.7 Observation unit for rotation
 The dwelling is the sampling/rotation unit; information is then collected for all usual residents within it:
 
@@ -230,6 +234,8 @@ Each dwelling is visited **once per quarter for five consecutive quarters**, the
 
 This is the classic "0/I/II/III/IV" rotating-panel design (conceptually similar in spirit to the US CPS's rotation logic, though ENOE's is a plain 5-wave-then-out design without CPS's 8-month gap).
 
+![ENOE Rotation Scheme](media/enoe_rotation.png)
+
 ### 3.7 Observation unit for rotation
 UPMs are fixed over time; the **dwelling** is what actually rotates:
 
@@ -250,6 +256,7 @@ Dwelling is the tracked unit, persons are enumerated within it at each visit, wi
 ## Sources
 
 **Project files (primary):**
+
 - *Metodología ENEMDU* (INEC, ed. mayo 2026): `202605_Metodologia_ENEMDU..pdf`
 - *Diseño Muestral ENEMDU* (INEC, ed. mayo 2026): `202605_Diseño Muestral ENEMDU.pdf`
 - *Documento Metodológico Encuesta Nacional de Empleo (ENE)* (INE Chile, abril 2022, v2.0): `metodologia-ene-2020.pdf`
@@ -257,6 +264,7 @@ Dwelling is the tracked unit, persons are enumerated within it at each visit, wi
 - *Cómo se hace la ENOE. Métodos y procedimientos* (INEGI, 2ª ed., 2020): `ENOE - Metodologia.pdf`
 
 **Web (for COVID-era and post-redesign details not covered in the project files above):**
+
 - INEC, *ENEMDU Trimestral* / *ENEMDU Anual 2021* / *ENEMDU-2021* pages and *Nota técnica* (junio 2021), ecuadorencifras.gob.ec: RECALCULADO and 2020 annual-gap details
 - INEC, *Guía de Uso de Base de Datos ENEMDU 2021-2024* (julio 2021): "comparable desde junio 2007"
 - INEGI, *Comunicado de Prensa 264/20* (1 junio 2020): ETOE definition and non-comparability statement

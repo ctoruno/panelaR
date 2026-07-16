@@ -34,7 +34,7 @@ enemdu_csv_files <- list.files(
 for (source_file in enemdu_csv_files){
   file.copy(from = source_file, to = dest_folder, overwrite = FALSE)
   message(
-    glue::glue("[info] File: {file} copied!!")
+    glue::glue("[info] File: {source_file} copied!!")
   )
 }
   
@@ -58,38 +58,26 @@ download_source_enoe(
   )
 )
 
-dir.create(
-  file.path(
-    path_to_data, "MEX-ENOE", "source"
-  ),
-  showWarnings = FALSE
+dest_folder <- file.path(
+  path_to_data, "MEX-ENOE", "source"
 )
-for (year in seq(2023, 2026)){
-  for (quarter in seq(1,4)){
+dir.create(dest_folder, showWarnings = FALSE)
 
-    quarters_2digs <- sprintf("%02d", quarter)
+enoe_csv_files <- list.files(
+  c(
+    file.path(path_to_data, "MEX-ENOE", "source-raw")
+  ), 
+  pattern = "\\.csv$", 
+  recursive = TRUE, 
+  full.names = TRUE,
+  ignore.case = TRUE
+)
 
-    source_file <- file.path(
-      path_to_data, "MEX-ENOE", "source-raw", 
-      glue::glue("{year}_{quarters_2digs}"), 
-      "csv"
-    )
-    dest_folder <- file.path(
-      path_to_data, "MEX-ENOE", "source"
-    )
-    
-    if (file.exists(source_file)){
-      file.copy(from = source_file, to = dest_folder, recursive = TRUE)
-      message(
-        glue::glue("[info] Directory: {year}_{quarters_2digs} copied!!")
-      )
-    } else {
-      message(
-        glue::glue("[error] irectory: {source_file} does not exists")
-      )
-    }
-
-  }
+for (source_file in enoe_csv_files){
+  file.copy(from = source_file, to = dest_folder, overwrite = FALSE)
+  message(
+    glue::glue("[info] File: {source_file} copied!!")
+  )
 }
 
 
