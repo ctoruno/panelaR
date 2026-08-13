@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 460" width="400" height="460"><metadata><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description><dc:creator>RealFaviconGenerator</dc:creator><dc:source>https://realfavicongenerator.net</dc:source></rdf:Description></rdf:RDF></metadata><polygon points="200,6 393,118 393,342 200,454 7,342 7,118" fill="#04151f"></polygon><polygon points="200,20 381,125 381,335 200,440 19,335 19,125" fill="#f6e8cb"></polygon><g>
+    <!-- soft shadow -->
+    <ellipse cx="199" cy="268" rx="98" ry="12" fill="#04151f" opacity="0.15"></ellipse>
+
+    <!-- right side face (darkest) -->
+    <polygon points="274,190 274,250 308,230 308,170" fill="#3c4237"></polygon>
+
+    <!-- front face -->
+    <polygon points="110,190 274,190 274,250 110,250" fill="#736f4e"></polygon>
+
+    <!-- top face (highlight) -->
+    <polygon points="110,190 274,190 308,170 144,170" fill="#f3cfbb"></polygon>
+
+    <!-- ribbon accent, front -->
+    <polygon points="182,190 196,190 196,250 182,250" fill="#8c271e"></polygon>
+    <!-- ribbon accent, top -->
+    <polygon points="182,190 196,190 230,170 216,170" fill="#8c271e"></polygon>
+  </g><text x="95" y="345" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="54">
+    <tspan fill="#736f4e">panela</tspan><tspan x="266" fill="#3c4237">R</tspan>
+  </text></svg>
