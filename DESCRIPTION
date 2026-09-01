@@ -37,4 +37,4 @@ Depends:
     R (>= 4.0.0)
 Suggests: 
     quarto
-Config/Needs/website: quarto
+Config/Needs/website: quarto, rmarkdown

@@ -1,0 +1,316 @@
+---
+title: "Two-tier person matching in `panelaR`"
+knitr:
+  opts_chunk:
+    collapse: true
+    comment: '#>'
+---
+
+## 1. The problem
+ 
+Rotating panel surveys revisit **dwellings**, and statistical agencies publish
+identifiers meant to link households and persons across waves. In practice
+those identifiers fail in two ways:
+ 
+1. **Household renumbering.** The same household within a dwelling receives a
+   different household number across waves (hogar `01` in January becomes
+   `02` in April).
+2. **Person-slot reshuffling.** Person identifiers within a household are
+   reassigned across waves (roster lines reordered, IDs swapped).
+   
+Where the person ID is *slot-encoded* — a concatenation of dwelling, household
+number, and roster line, as in ENEMDU's `id_persona` — the two failures are
+mechanically coupled: renumbering a household breaks the person ID of **every
+member**, whether or not the roster was also reshuffled. Any pipeline that
+joins purely on official person IDs silently converts these events into fake
+attrition, and worse, into *non-random* fake attrition (households that
+restructure or get re-enumerated are not a random subset), which contaminates
+attrition corrections and transition estimates downstream.
+ 
+## 2. Design principles
+ 
+**The dwelling ID is the only hard anchor.** Everything below the dwelling —
+household number, person ID, roster line — is treated as *evidence*, not as a
+join key. This is the correct trust boundary because rotation designs follow
+dwellings, so the dwelling ID is the identifier the agency has the strongest
+incentive and mechanism to keep stable.
+ 
+**Match persons first; derive households after.** An earlier candidate design
+matched households by composition summaries (size, mean age, share female) and
+then matched persons within matched households. This was inverted: composition
+summaries discard exactly the person-level information needed in the second
+stage, and they are fragile to genuine composition change (a single birth or
+departure shifts every summary statistic). Instead, persons are matched
+directly within the dwelling, and the household correspondence is *derived*
+from person matches afterwards by majority vote. Household-level structure
+falls out as a by-product rather than acting as a gate.
+ 
+**Official IDs are used, not discarded.** Matching runs in two tiers:
+ 
+- **Tier 1 (`id_verified`)** trusts the agency's person ID where it can be
+  verified: same ID in both waves *and* consistent sex/age. This is the bulk
+  of links and carries the lowest false-positive risk.
+- **Tier 2 (`dwelling_fuzzy`)** fuzzy-matches only the **residual** — persons
+  in dwellings present in both waves who were not linked by Tier 1.
+Restricting fuzziness to the residual is the Madrian & Lefgren (2000) logic:
+every loosening of match criteria trades false negatives for false positives,
+so loosen only where the strict criterion has already failed. It also makes
+the ID-failure rate *measurable*: the share of links recovered by Tier 2 is a
+direct estimate of how often the agency's identifiers break.
+ 
+**Every downstream statistic keeps the tier label.** `match_tier` travels with
+each linked observation into transition matrices, so all flow estimates can be
+computed with and without the fuzzy tier as a robustness check. If including
+Tier 2 changes an estimate materially, that is itself a finding: the persons
+recovered by fuzzy matching (within-dwelling movers, restructured households)
+differ systematically from those with intact IDs.
+ 
+## 3. Tier 1: verified ID matches
+ 
+`verify_person_link()` joins the two waves on the official person ID and
+verifies the join on sex and age (age consistent with elapsed time). Matches
+that fail verification — same ID slot, incompatible demographics — are **not**
+accepted; they are evidence that the slot was reassigned, and their occupants
+fall into the Tier-2 pool. Note two structural facts:
+ 
+- Tier-1 output carries only the person ID and demographics. For household-
+  level analysis its dwelling/household IDs must be recovered
+  (`augment_tier1_ids()`, section 6).
+- Under slot-encoded IDs, a truly renumbered household has a Tier-1 link count
+  of exactly zero — every member's ID broke. This is used as a consistency
+  check later (section 5).
+## 4. Tier 2: fuzzy matching within dwellings
+ 
+`match_residual_within_dwelling()` operates on the residual rosters of the two
+waves. The steps, in order:
+ 
+**Scope.** An `inner_join` on the dwelling ID means only dwellings present in
+*both* waves contribute candidates. A dwelling absent from either wave
+(rotation entry/exit, attrition) yields nothing — the fuzzy tier never invents
+links for dwellings the design says cannot overlap.
+ 
+**Candidate generation.** Within each dwelling, the join produces the full
+cross of residual persons: 3 unmatched persons at t−1 × 4 at t = 12 candidate
+pairs. Households are deliberately pooled — this is what makes the matcher
+immune to household renumbering.
+ 
+**Hard constraints.** A candidate survives only if (a) sex is equal and
+(b) the age gap `age_curr − age_prev` lies in the feasible window. For a
+3-month elapsed gap the expected gap in completed years is 0 or 1; the default
+window `[−1, +2]` adds one year of reporting noise on each side.
+ 
+**Scoring.** Surviving pairs get a score: a peak for age gaps of 0 or 1 with a
+penalty per year of deviation, plus *soft* bonuses for same relationship to
+household head, same household number, and same roster line. The bonuses
+encode that official IDs are *usually* right — agreement is evidence — without
+letting them veto a match. Caveat on the relationship bonus: if the agency
+re-designates the household head between waves (common when a head departs),
+every member's relationship code shifts and the bonus penalizes true matches.
+Check `pct_lineage_ok` among Tier-1 verified links; if it is low, shrink the
+bonus or condition it on the head being unchanged.
+ 
+**One-to-one assignment.** Within each dwelling, pairs are assigned greedily
+by descending score, never reusing a person on either side. For household-
+sized rosters greedy is equivalent in practice to optimal assignment
+(`clue::solve_LSAP` is the optimal alternative if ever needed).
+ 
+**Ambiguity flag.** Before assignment, each candidate's best *competing* score
+is computed on each side (`rival_prev`, `rival_curr`). A retained match is
+flagged `ambiguous` when it beat either rival by less than the margin
+(default 1 point). The canonical trigger is the **demographic-twin problem**:
+two same-sex siblings a year apart are feasible partners for each other's
+records; whichever pairing the assignment picks, both links get flagged. The
+flag is an OR over the two sides and is computed on the full feasible set, so
+a competitor counts even if the assignment ultimately gave it to someone else.
+ 
+A second structural risk motivates the corroboration machinery of section 5:
+because rotation follows dwellings, an entire household can move out and be
+replaced by a demographically similar one. Sex + age band alone cannot
+distinguish this from a true link.
+ 
+## 5. Household-level corroboration: `household_link_support()`
+ 
+Each matched pair implies a household mapping: the person belonged to hogar A
+at t−1 and hogar B at t. Aggregating over pairs gives, per
+(dwelling, hogar_prev, hogar_curr) mapping, a support table whose logic is:
+**a lone sex/age match is weak evidence, but several matches that all point to
+the same household mapping corroborate each other** — the probability that
+multiple coincidental matches align on one mapping is tiny, while "same
+household, renumbered by the agency" explains them all at once.
+ 
+A raw count of supporting links is not enough, for two reasons that surfaced
+in use:
+ 
+1. **Household size matters.** Four of four members mapping A→B is
+   near-conclusive; four of nine is compatible with a split or with false
+   positives. Hence `coverage_prev = n_links / hh_size_prev` and
+   `coverage_curr = n_links / hh_size_curr`, computed against the **full
+   rosters** (not the residual pool — a household mostly caught by Tier 1
+   would otherwise look tiny and inflate coverage). The two coverages differ
+   legitimately under composition change; read them jointly.
+2. **Tier-1 links corroborate too.** A member recovered by fuzzy matching
+   inside a household whose other four members matched by intact IDs is far
+   from uncorroborated. The support table therefore counts links from **both
+   tiers** (`n_id_verified`, `n_dwelling_fuzzy`) — which requires Tier-1 rows
+   to carry their household IDs (section 6).
+The two flags:
+ 
+- **`renumbered`**: `id_household_prev != id_household_curr`. The direct
+  measurement of the renumbering concern. High-coverage renumbered mappings
+  are confident agency-renumbering events; single-link low-coverage ones are
+  more likely false positives. Note the reverse consistency check: Tier-1
+  corroboration *inside a renumbered mapping* is impossible under slot-encoded
+  IDs, so observing verified `01→01` links in a dwelling alongside a fuzzy
+  `01→02` claim means hogar 01 still exists — the `01→02` link is a split or a
+  false positive, not renumbering.
+- **`conflicted`**: the mapping shares its prev- or curr-household with
+  another mapping in the same dwelling — a genuine split/merge or a fuzzy
+  false positive dragging one person into the wrong household. Renumbering
+  rates are computed on non-conflicted mappings only.
+**Production acceptance rule** (thresholds to be calibrated, section 8): keep
+Tier-2 person links only where the supporting household mapping has
+`coverage >= ~0.5` on the smaller side and `!conflicted`, and the link itself
+is `!ambiguous`. Rejected links fall back into attrition, where the standard
+IPW machinery treats them honestly. Coverage of 1.0 is *not* the bar —
+membership churn (births, departures) caps coverage below 1 even for true
+matches.
+ 
+## 6. Wiring: `link_persons_tiered()` and `augment_tier1_ids()`
+ 
+`link_persons_tiered()` runs Tier 1, excludes its matches from both rosters,
+runs Tier 2 on the residual, and stacks the results with `match_tier`.
+ 
+`augment_tier1_ids()` attaches dwelling/household IDs to Tier-1 rows by
+joining the previous wave's roster. Under ENEMDU's slot-encoded `id_persona`
+this single join suffices and `id_household_curr == id_household_prev` holds
+*by construction*. This shortcut is **survey-specific**: for a person key
+independent of household numbering (Chile's `idrph`), the same person can
+legitimately sit in a different household across waves, and the augmentation
+must join both rosters and compare. Augmentation is mandatory before
+`household_link_support()` — un-augmented Tier-1 rows carry `NA` household
+IDs and silently vanish from support counts, collapsing every coverage
+metric. A cheap guard: `stopifnot(!anyNA(persons$id_dwelling))`.
+ 
+## 7. Objects and their units of observation
+ 
+Confusion between these units caused real interpretive errors; every share in
+the diagnostics has one of three denominators.
+ 
+| Object | One row is | Typical scale (ENEMDU) |
+|---|---|---|
+| full microdata | person × survey month | ~29k persons/month |
+| `persons` (linked) | matched person-pair × period pair | ~10.4k links/pair |
+| `hh_support` | (dwelling, hogar_prev, hogar_curr) mapping × period pair | ~3.4k mappings/pair |
+ 
+Sanity ratios: links per household mapping ≈ average household size net of
+churn (≈3 for Ecuador — values near 1 or above 5 indicate an exploding join or
+misfiltered rosters); realized links ≈ 70–75% of the *theoretical* rotation
+overlap (about half the monthly sample at the t−3 lag under ENEMDU's 2(2)2
+design), the remainder being genuine attrition plus verification failures net
+of fuzzy recovery.
+ 
+The per-period diagnostics (`link_diagnostics_tiered()`) then split as:
+ 
+- **Denominator = all person links**: `pct_fuzzy` (dependence of the panel on
+  the fuzzy tier).
+- **Denominator = Tier-2 links**: `pct_fuzzy_ambiguous` (internal quality of
+  the fuzzy tier; multiply by `pct_fuzzy` for panel-wide exposure).
+- **Denominator = household mappings**: `pct_hh_conflicted`,
+  `pct_hh_fuzzy_involved`, `pct_weak_support`, `med_coverage_prev` (a median
+  of within-mapping ratios, not a share of anything), and
+  `pct_hh_renumbered` — computed on the **non-conflicted subset** so
+  splits/merges do not masquerade as renumbering.
+## 8. Validation and calibration
+ 
+**Placebo test (false-positive calibration).** Run the fuzzy matcher between
+waves that *cannot* overlap under the rotation design (relabeled dwelling IDs
+across rotation groups, or non-adjacent periods). The resulting match rate and
+coverage distribution measure pure demographic coincidence, and set the
+thresholds for `ambiguity_margin`, the coverage floor, and how much weight the
+`ambiguous` / weak-support flags carry.
+ 
+**Contradiction check (roster-reshuffle detection).** Persons whose ID matched
+across waves but failed sex/age verification: if the fuzzy tier reassigns them
+to a different partner in the same dwelling with a high score, the slot was
+reshuffled (recoverable) rather than the response being erroneous (lost).
+ 
+**Degenerate period pairs.** Period pairs whose previous wave is not in the
+data (series start; redesign boundaries) must be excluded via a
+linkable-periods calendar, not discovered at runtime. Zero-candidate inputs
+also exposed a schema-stability requirement: every function must return the
+same columns on empty input (`names_expand = TRUE` in pivots; typed zero-row
+early returns), or downstream code fails only on the periods where nothing
+happened.
+ 
+**Tier composition over time.** If `pct_fuzzy` spikes in specific months, the
+agency's ID production broke there — localize it, report it, and scrutinize
+those months' Tier-2 quality flags before trusting the recovered links.
+ 
+## 9. Porting to other surveys
+ 
+The core is survey-agnostic; the adapters are not. Minimum requirements to
+run the machinery at all: (1) constructible dwelling, household, and person
+IDs with one row per person per wave; (2) a dwelling ID that is stable across
+waves and never recycled within a panel's life — this is the load-bearing
+assumption and must be **verified empirically per survey**, not read off
+documentation.
+ 
+Portable as-is: the fuzzy matcher, assignment, `household_link_support()`,
+crosswalk derivation, diagnostics.
+ 
+Per-survey adapter points:
+ 
+1. **Tier-1 trust rule** — what counts as "same person ID." ENEMDU:
+   `id_persona` equality. ENOE: composite-key equality. EPH:
+   `CODUSU + NRO_HOGAR + COMPONENTE`. PNADC: no person ID published;
+   household key + person characteristics (and PNADC's full date of birth is
+   a far stronger matching variable than sex + age band — use it). ENE:
+   `idrph`, a purpose-built longitudinal person key.
+2. **`augment_tier1_ids()` logic** — trivial under slot-encoded IDs, a
+   two-roster join otherwise (section 6).
+3. **Elapsed-time parameters** — the age window and score peak encode a
+   3-month link; designs with 12-month links (EPH's 2-2-2 re-entry, ENOE
+   non-adjacent waves) need the window derived from `months_elapsed`.
+4. **Linkable-periods calendar** — each survey's own pairing rule plus its
+   discontinuities encoded as excluded/flagged pairs (Mexico's 2020
+   ETOE/ENOE-N gap and 2023 redesign; Chile's 2020 transition; Ecuador's 2021
+   redesign), handled in the calendar layer, never inside the matcher.
+**Worked example — ENOE.** Keys are constructed by concatenating fixed-width
+*character* fields (never numeric conversion — leading zeros are load-bearing):
+dwelling `CD_A + ENT + CON + V_SEL`; household adds `N_HOG + H_MUD`; person
+adds `N_REN`. `TIPO` is excluded (sample mode, can change across waves in the
+2023+ mixed-mode design) and `MES_CAL` is excluded (fieldwork calendar, not
+identity). Because INEGI's published primary keys *include* those fields, the
+mandatory check after dropping them is key uniqueness within each quarter —
+duplicates mean the dropped fields were doing identification work and the
+cross-wave join will fabricate links. Further ENOE specifics: filter rosters
+to completed interviews and residents (`R_DEF == "00"`, `C_RES != "2"`) and
+recode special age codes to `NA` before the age-gap logic; treat the
+`ENT`/`CVE_ENT` schema inconsistency as a per-release formatting hazard (a
+padding mismatch at one boundary manifests as a fake attrition cliff in
+exactly one period pair); and note that `H_MUD` churn is ENOE's analogue of
+ENEMDU's renumbering — a continuing household whose `H_MUD` increments breaks
+Tier 1 mechanically and should surface in `hh_support$renumbered`. ENOE also
+offers a check ENEMDU lacks: `N_ENT` (interview 1–5) makes the at-risk
+population observable — every dwelling with `N_ENT < 5` should return next
+quarter with `N_ENT + 1`, and `n_ent_curr == n_ent_prev + 1` should hold for
+essentially all links, giving a direct false-positive detector for the fuzzy
+tier.
+ 
+Before writing any new adapter, benchmark Tier 1 against an existing
+implementation for that survey (`eph`, the ENOE panel packages,
+`datazoom.social` for PNADC): disagreement beyond rounding means one side
+handles a filter, a key component, or a boundary quarter differently — worth
+resolving before layering the fuzzy tier on top.
+ 
+## 10. References
+ 
+- Madrian, B. & Lefgren, L. (2000), "An Approach to Longitudinally Matching
+  Current Population Survey (CPS) Respondents" — the false-positive /
+  false-negative framing of demographic match criteria.
+- Donovan, Lu & Schoellman (Harvard Dataverse replication package) — dwelling/
+  demographic matching across many countries' rotating LFS panels.
+- Maurizio et al. — LAC panel construction and flow estimation practice.
+- Agency technical documentation per survey (INEC ENEMDU sample design; INEGI
+  ENOE *Estructura de la base de datos* and *Cómo se hace la ENOE*; INE ENE
+  methodology) — for key definitions, always to be verified against microdata.
